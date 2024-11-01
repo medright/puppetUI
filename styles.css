@@ -1,0 +1,50 @@
+/* Custom styles for the Jest Test Runner */
+
+/* Header styling */
+.stTitle {
+    color: #2E294E;
+    font-weight: 700;
+    padding-bottom: 1rem;
+}
+
+/* Button styling */
+.stButton button {
+    width: 100%;
+    font-weight: 600;
+}
+
+/* Progress bar colors */
+.stProgress > div > div {
+    background-color: #1FB2A6;
+}
+
+/* Test results styling */
+[data-testid="stDataFrame"] {
+    background: white;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* Status indicators */
+.pass {
+    color: #1FB2A6;
+    font-weight: 600;
+}
+
+.fail {
+    color: #FF4B4B;
+    font-weight: 600;
+}
+
+/* Expander styling */
+.streamlit-expanderHeader {
+    font-size: 0.9rem;
+    color: #2E294E;
+}
+
+/* Code output styling */
+.stCode {
+    max-height: 300px;
+    overflow-y: auto;
+}
