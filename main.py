@@ -38,6 +38,10 @@ class JestTestUI:
             self.add_mock_history_data()
         if 'presets' not in st.session_state:
             st.session_state.presets = self.preset_manager.load_presets()
+        if 'preset_loaded' not in st.session_state:
+            st.session_state.preset_loaded = False
+        if 'selected_preset_name' not in st.session_state:
+            st.session_state.selected_preset_name = None
 
     def add_mock_history_data(self):
         """Add mock test history data to demonstrate visualization features"""
@@ -112,24 +116,43 @@ class JestTestUI:
             st.subheader("Test Selection")
             
             # Preset Selection
+            st.markdown("### Preset Management")
             col1, col2 = st.columns([3, 1])
+            
             with col1:
                 available_presets = list(st.session_state.presets.keys())
                 if available_presets:
                     selected_preset = st.selectbox(
                         "Load from preset",
-                        ["Select a preset..."] + available_presets
+                        ["Select a preset..."] + available_presets,
+                        help="Choose a saved preset to quickly load a group of tests"
                     )
-                    if selected_preset != "Select a preset...":
-                        st.session_state.selected_tests = st.session_state.presets[selected_preset]
+                    st.markdown("""
+                    ℹ️ **How to use presets:**
+                    1. Select tests you want to save using the multi-select below
+                    2. Enter a preset name and click 'Save as Preset'
+                    3. Load your saved presets anytime using this dropdown
+                    """)
+                    
+                    # Preview selected preset
+                    if selected_preset != "Select a preset..." and selected_preset in st.session_state.presets:
+                        st.markdown("#### 👀 Preset Preview")
+                        st.markdown(f"**{selected_preset}** contains these tests:")
+                        for test in st.session_state.presets[selected_preset]:
+                            st.markdown(f"- `{test}`")
             
             with col2:
-                if st.session_state.selected_tests:
-                    preset_name = st.text_input("Preset name")
-                    if preset_name and st.button("Save as Preset"):
-                        if self.preset_manager.add_preset(preset_name, st.session_state.selected_tests):
-                            st.session_state.presets = self.preset_manager.load_presets()
-                            st.success(f"Preset '{preset_name}' saved!")
+                if selected_preset != "Select a preset..." and selected_preset in st.session_state.presets:
+                    if st.button("📥 Load Preset", type="primary"):
+                        st.session_state.selected_tests = st.session_state.presets[selected_preset]
+                        st.session_state.preset_loaded = True
+                        st.session_state.selected_preset_name = selected_preset
+            
+            # Show success message when preset is loaded
+            if st.session_state.preset_loaded and st.session_state.selected_preset_name:
+                st.success(f"✨ Preset '{st.session_state.selected_preset_name}' loaded successfully!")
+                # Reset the loaded flag
+                st.session_state.preset_loaded = False
             
             # Test Selection
             test_commands = parse_test_commands(st.session_state.test_files)
@@ -140,20 +163,34 @@ class JestTestUI:
                 help="Choose one or more tests to execute"
             )
             st.session_state.selected_tests = selected_tests
+            
+            # Save Preset
+            if selected_tests:
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    preset_name = st.text_input(
+                        "Save current selection as preset",
+                        help="Enter a name for your preset to save the current test selection"
+                    )
+                with col2:
+                    if preset_name and st.button("💾 Save as Preset"):
+                        if self.preset_manager.add_preset(preset_name, selected_tests):
+                            st.session_state.presets = self.preset_manager.load_presets()
+                            st.success(f"✨ Preset '{preset_name}' saved successfully!")
 
             # Preset Management
             if st.session_state.presets:
-                with st.expander("Manage Presets"):
+                with st.expander("🔧 Manage Presets"):
                     preset_to_delete = st.selectbox(
                         "Select preset to delete",
                         ["Select a preset..."] + list(st.session_state.presets.keys())
                     )
-                    if preset_to_delete != "Select a preset..." and st.button("Delete Preset"):
+                    if preset_to_delete != "Select a preset..." and st.button("🗑️ Delete Preset"):
                         if self.preset_manager.delete_preset(preset_to_delete):
                             st.session_state.presets = self.preset_manager.load_presets()
                             st.success(f"Preset '{preset_to_delete}' deleted!")
 
-            if st.button("Run Selected Tests", disabled=not selected_tests):
+            if st.button("▶️ Run Selected Tests", disabled=not selected_tests):
                 self.run_tests()
 
     def store_test_history(self, results):
