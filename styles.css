@@ -2,7 +2,7 @@
 
 /* Header styling */
 .stTitle {
-    color: #2E294E;
+    color: #FAFAFA;
     font-weight: 700;
     padding-bottom: 1rem;
 }
@@ -15,20 +15,20 @@
 
 /* Progress bar colors */
 .stProgress > div > div {
-    background-color: #1FB2A6;
+    background-color: #FF4B4B;
 }
 
 /* Test results styling */
 [data-testid="stDataFrame"] {
-    background: white;
+    background: #262730;
     padding: 1rem;
     border-radius: 0.5rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
 
 /* Status indicators */
 .pass {
-    color: #1FB2A6;
+    color: #00CC66;
     font-weight: 600;
 }
 
@@ -40,11 +40,31 @@
 /* Expander styling */
 .streamlit-expanderHeader {
     font-size: 0.9rem;
-    color: #2E294E;
+    color: #FAFAFA;
 }
 
 /* Code output styling */
 .stCode {
     max-height: 300px;
     overflow-y: auto;
+    background-color: #1E1E1E;
+    border: 1px solid #363636;
+}
+
+/* Input field styling */
+.stTextInput input {
+    background-color: #262730;
+    color: #FAFAFA;
+    border: 1px solid #363636;
+}
+
+/* Multiselect styling */
+.stMultiSelect {
+    background-color: #262730;
+    color: #FAFAFA;
+}
+
+/* Container styling */
+.stMarkdown {
+    color: #FAFAFA;
 }
