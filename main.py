@@ -5,7 +5,8 @@ from pathlib import Path
 from test_runner import TestRunner
 from utils import scan_test_files, parse_test_commands
 import time
-from datetime import datetime
+import random
+from datetime import datetime, timedelta
 
 # Page configuration
 st.set_page_config(
@@ -31,6 +32,58 @@ class JestTestUI:
             st.session_state.test_results = None
         if 'test_history' not in st.session_state:
             st.session_state.test_history = []
+            # Add mock test history data
+            self.add_mock_history_data()
+
+    def add_mock_history_data(self):
+        """Add mock test history data to demonstrate visualization features"""
+        # Mock test names
+        test_names = [
+            "UserAuth.test.js",
+            "api/endpoints.test.js",
+            "components/Button.test.js",
+            "utils/helpers.test.js"
+        ]
+        
+        # Generate data for the last 7 days
+        now = datetime.now()
+        for days_ago in range(7, -1, -1):
+            # Create 3 entries per day
+            base_time = now - timedelta(days=days_ago)
+            for hour in [9, 13, 17]:  # Morning, afternoon, evening
+                timestamp = base_time.replace(hour=hour, minute=0, second=0)
+                
+                for test in test_names:
+                    # Vary success rate over time
+                    success_chance = 0.8  # Base 80% success rate
+                    if days_ago > 5:  # Lower success rate in older entries
+                        success_chance = 0.6
+                    elif days_ago < 2:  # Higher success rate in recent entries
+                        success_chance = 0.9
+                    
+                    # Random status based on success chance
+                    status = '✅ PASS' if random.random() < success_chance else '❌ FAIL'
+                    
+                    # Vary duration based on test type and add some randomness
+                    base_duration = {
+                        'UserAuth.test.js': 2.5,
+                        'api/endpoints.test.js': 1.8,
+                        'components/Button.test.js': 0.9,
+                        'utils/helpers.test.js': 0.5
+                    }[test]
+                    
+                    # Add some random variation to duration
+                    duration = base_duration + random.uniform(-0.2, 0.2)
+                    
+                    # Create history entry
+                    history_entry = {
+                        'timestamp': timestamp,
+                        'test': test,
+                        'status': status,
+                        'duration': max(0.1, duration),  # Ensure duration is positive
+                        'output': f"Mock output for {test} at {timestamp}"
+                    }
+                    st.session_state.test_history.append(history_entry)
 
     def render_header(self):
         st.title("🧪 Jest Test Runner")
