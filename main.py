@@ -4,6 +4,7 @@ import plotly.express as px
 from pathlib import Path
 from test_runner import TestRunner
 from utils import scan_test_files, parse_test_commands
+from presets import PresetManager
 import time
 import random
 from datetime import datetime, timedelta
@@ -22,6 +23,7 @@ with open('styles.css') as f:
 class JestTestUI:
     def __init__(self):
         self.test_runner = TestRunner()
+        self.preset_manager = PresetManager()
         
         # Initialize session state
         if 'test_files' not in st.session_state:
@@ -34,6 +36,8 @@ class JestTestUI:
             st.session_state.test_history = []
             # Add mock test history data
             self.add_mock_history_data()
+        if 'presets' not in st.session_state:
+            st.session_state.presets = self.preset_manager.load_presets()
 
     def add_mock_history_data(self):
         """Add mock test history data to demonstrate visualization features"""
@@ -105,16 +109,49 @@ class JestTestUI:
 
     def render_test_selection(self):
         if st.session_state.test_files:
-            st.subheader("Available Tests")
+            st.subheader("Test Selection")
             
+            # Preset Selection
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                available_presets = list(st.session_state.presets.keys())
+                if available_presets:
+                    selected_preset = st.selectbox(
+                        "Load from preset",
+                        ["Select a preset..."] + available_presets
+                    )
+                    if selected_preset != "Select a preset...":
+                        st.session_state.selected_tests = st.session_state.presets[selected_preset]
+            
+            with col2:
+                if st.session_state.selected_tests:
+                    preset_name = st.text_input("Preset name")
+                    if preset_name and st.button("Save as Preset"):
+                        if self.preset_manager.add_preset(preset_name, st.session_state.selected_tests):
+                            st.session_state.presets = self.preset_manager.load_presets()
+                            st.success(f"Preset '{preset_name}' saved!")
+            
+            # Test Selection
             test_commands = parse_test_commands(st.session_state.test_files)
             selected_tests = st.multiselect(
                 "Select tests to run",
                 options=test_commands,
-                default=None,
+                default=st.session_state.selected_tests,
                 help="Choose one or more tests to execute"
             )
             st.session_state.selected_tests = selected_tests
+
+            # Preset Management
+            if st.session_state.presets:
+                with st.expander("Manage Presets"):
+                    preset_to_delete = st.selectbox(
+                        "Select preset to delete",
+                        ["Select a preset..."] + list(st.session_state.presets.keys())
+                    )
+                    if preset_to_delete != "Select a preset..." and st.button("Delete Preset"):
+                        if self.preset_manager.delete_preset(preset_to_delete):
+                            st.session_state.presets = self.preset_manager.load_presets()
+                            st.success(f"Preset '{preset_to_delete}' deleted!")
 
             if st.button("Run Selected Tests", disabled=not selected_tests):
                 self.run_tests()
@@ -187,7 +224,7 @@ class JestTestUI:
             
             # Success rate over time
             st.subheader("Test Success Rate Over Time")
-            success_rate = history_df.groupby('timestamp').apply(
+            success_rate = history_df.groupby('timestamp', group_keys=False).apply(
                 lambda x: (x['status'] == '✅ PASS').mean() * 100
             ).reset_index()
             success_rate.columns = ['timestamp', 'success_rate']
