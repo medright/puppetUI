@@ -5,6 +5,7 @@ from pathlib import Path
 from test_runner import TestRunner
 from utils import scan_test_files, parse_test_commands
 from presets import PresetManager
+from test_report import TestReportExporter
 import time
 import random
 from datetime import datetime, timedelta
@@ -24,6 +25,7 @@ class JestTestUI:
     def __init__(self):
         self.test_runner = TestRunner()
         self.preset_manager = PresetManager()
+        self.report_exporter = TestReportExporter()
         
         # Initialize session state
         if 'test_files' not in st.session_state:
@@ -231,6 +233,28 @@ class JestTestUI:
                 use_container_width=True
             )
 
+            # Add export options
+            st.subheader("Export Results")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                if st.button("📊 Export Results as CSV"):
+                    filepath = self.report_exporter.export_current_results(results, "csv")
+                    st.success(f"Results exported to: {filepath}")
+                    
+            with col2:
+                if st.button("📋 Export Results as JSON"):
+                    filepath = self.report_exporter.export_current_results(results, "json")
+                    st.success(f"Results exported to: {filepath}")
+                    
+            with col3:
+                if st.button("📝 Generate Detailed Report"):
+                    filepath = self.report_exporter.generate_summary_report(
+                        results, 
+                        st.session_state.test_history
+                    )
+                    st.success(f"Detailed report generated at: {filepath}")
+
             for result in results:
                 with st.expander(f"Output: {result['Test']}"):
                     st.code(result['Output'])
@@ -238,6 +262,24 @@ class JestTestUI:
     def render_test_history(self):
         if st.session_state.test_history:
             st.subheader("Test History")
+
+            # Add export options for history
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("📊 Export History as CSV"):
+                    filepath = self.report_exporter.export_test_history(
+                        st.session_state.test_history, 
+                        "csv"
+                    )
+                    st.success(f"History exported to: {filepath}")
+                    
+            with col2:
+                if st.button("📋 Export History as JSON"):
+                    filepath = self.report_exporter.export_test_history(
+                        st.session_state.test_history, 
+                        "json"
+                    )
+                    st.success(f"History exported to: {filepath}")
 
             history_df = pd.DataFrame(st.session_state.test_history)
             
