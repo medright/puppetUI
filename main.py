@@ -7,8 +7,8 @@ from utils import scan_test_files, parse_test_commands
 from presets import PresetManager
 from test_report import TestReportExporter
 import time
-import random
 from datetime import datetime, timedelta
+import random
 
 # Page configuration
 st.set_page_config(
@@ -30,6 +30,8 @@ class JestTestUI:
         # Initialize session state
         if 'test_files' not in st.session_state:
             st.session_state.test_files = []
+        if 'test_commands' not in st.session_state:
+            st.session_state.test_commands = []
         if 'selected_tests' not in st.session_state:
             st.session_state.selected_tests = []
         if 'test_results' not in st.session_state:
@@ -60,6 +62,7 @@ class JestTestUI:
             if st.button("Scan Directory", type="primary"):
                 with st.spinner("Scanning for test files..."):
                     st.session_state.test_files = scan_test_files(directory)
+                    st.session_state.test_commands = parse_test_commands(st.session_state.test_files)
                     st.success(f"Found {len(st.session_state.test_files)} test files!")
 
     def render_preset_management(self):
@@ -122,22 +125,98 @@ class JestTestUI:
 
         st.markdown("---")
 
+    def run_single_test(self, test_pattern: str):
+        with st.spinner(f"Running test: {test_pattern}"):
+            start_time = time.time()
+            success, output = self.test_runner.run_test(test_pattern)
+            duration = round(time.time() - start_time, 2)
+
+            result = {
+                'Test': test_pattern,
+                'Status': '✅ PASS' if success else '❌ FAIL',
+                'Duration': f'{duration}s',
+                'Output': output
+            }
+
+            self.store_test_history([result])
+            self.display_results([result], st.empty())
+
     def render_test_selection(self):
         if st.session_state.test_files:
             st.header("🎯 Test Selection")
-            st.markdown("Select individual tests or entire test files to run.")
             
-            test_commands = parse_test_commands(st.session_state.test_files)
-            selected_tests = st.multiselect(
-                "Select tests to run",
-                options=test_commands,
-                default=st.session_state.selected_tests,
-                help="Choose one or more tests to execute"
-            )
-            st.session_state.selected_tests = selected_tests
+            # Group tests by file
+            test_files = {}
+            for cmd in st.session_state.test_commands:
+                if cmd['file'] not in test_files:
+                    test_files[cmd['file']] = []
+                test_files[cmd['file']].append(cmd)
 
-            if st.button("▶️ Run Selected Tests", disabled=not selected_tests, type="primary"):
-                self.run_tests()
+            # Display tests grouped by file
+            for file_path, commands in test_files.items():
+                with st.expander(f"📄 {file_path}", expanded=True):
+                    file_command = next(cmd for cmd in commands if cmd['type'] == 'file')
+                    
+                    # File-level controls
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.checkbox(
+                            "Select all tests in file",
+                            value=file_command['pattern'] in st.session_state.selected_tests,
+                            key=f"select_all_{file_path}",
+                            on_change=self.handle_file_selection,
+                            args=(file_command['pattern'], commands)
+                        )
+                    with col2:
+                        st.button(
+                            "▶️ Run File",
+                            key=f"run_file_{file_path}",
+                            on_click=self.run_single_test,
+                            args=(file_command['pattern'],)
+                        )
+
+                    # Individual test controls
+                    for cmd in commands:
+                        if cmd['type'] == 'test':
+                            col1, col2 = st.columns([3, 1])
+                            with col1:
+                                st.checkbox(
+                                    cmd['name'],
+                                    value=cmd['pattern'] in st.session_state.selected_tests,
+                                    key=f"test_{cmd['pattern']}",
+                                    on_change=self.handle_test_selection,
+                                    args=(cmd['pattern'],)
+                                )
+                            with col2:
+                                st.button(
+                                    "▶️ Run",
+                                    key=f"run_test_{cmd['pattern']}",
+                                    on_click=self.run_single_test,
+                                    args=(cmd['pattern'],)
+                                )
+
+            if st.session_state.selected_tests:
+                st.button("▶️ Run Selected Tests", on_click=self.run_tests, type="primary")
+
+    def handle_file_selection(self, file_pattern: str, commands: list):
+        is_selected = file_pattern in st.session_state.selected_tests
+        
+        if is_selected:
+            st.session_state.selected_tests = [
+                test for test in st.session_state.selected_tests
+                if not any(cmd['pattern'] == test for cmd in commands)
+            ]
+        else:
+            st.session_state.selected_tests.extend(
+                cmd['pattern'] for cmd in commands
+                if cmd['pattern'] not in st.session_state.selected_tests
+            )
+
+    def handle_test_selection(self, test_pattern: str):
+        if test_pattern in st.session_state.selected_tests:
+            st.session_state.selected_tests.remove(test_pattern)
+        else:
+            st.session_state.selected_tests.append(test_pattern)
 
     def add_mock_history_data(self):
         test_names = [
@@ -233,7 +312,6 @@ class JestTestUI:
                 use_container_width=True
             )
 
-            # Add export options
             st.subheader("Export Results")
             col1, col2, col3 = st.columns(3)
             
@@ -263,7 +341,6 @@ class JestTestUI:
         if st.session_state.test_history:
             st.subheader("Test History")
 
-            # Add export options for history
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("📊 Export History as CSV"):
