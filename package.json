@@ -1,0 +1,17 @@
+{
+  "name": "jest-test-runner",
+  "version": "1.0.0",
+  "description": "Example Puppeteer tests for Jest Test Runner",
+  "scripts": {
+    "test": "jest"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "jest": "^29.5.0",
+    "jest-puppeteer": "^9.0.0",
+    "puppeteer": "^21.0.0"
+  },
+  "jest": {
+    "preset": "jest-puppeteer"
+  }
+}
