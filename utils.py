@@ -1,12 +1,13 @@
 from pathlib import Path
 import re
 
-def scan_test_files(directory: str) -> list[Path]:
+def scan_test_files(directory: str, exclude_patterns: list[str] = None) -> list[Path]:
     """
-    Scan a directory for Jest test files
+    Scan a directory for Jest test files while excluding specified patterns
     
     Args:
         directory: Directory path to scan
+        exclude_patterns: List of patterns to exclude (e.g., ['node_modules'])
         
     Returns:
         list: List of paths to test files
@@ -22,11 +23,19 @@ def scan_test_files(directory: str) -> list[Path]:
         "**/__tests__/**/*.tsx"
     ]
     
+    # Default exclude patterns if none provided
+    if exclude_patterns is None:
+        exclude_patterns = ['node_modules']
+    
     test_files = []
     directory_path = Path(directory)
     
     for pattern in test_patterns:
-        test_files.extend(directory_path.glob(pattern))
+        found_files = directory_path.glob(pattern)
+        # Filter out excluded patterns
+        for file_path in found_files:
+            if not any(excl in str(file_path) for excl in exclude_patterns):
+                test_files.append(file_path)
     
     return sorted(test_files)
 

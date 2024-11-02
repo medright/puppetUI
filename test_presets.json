@@ -1,1 +1,10 @@
-{}
+{
+  "tsts": [
+    "/Users/chrisx/Desktop/Developer/PuppeteerScriptExecutor/__tests__/e2e/navigation.test.js",
+    "-t 'should navigate through main sections'",
+    "-t 'should open and close mobile menu'",
+    "-t 'should handle newsletter subscription form'",
+    "-t 'should show cookie consent banner'",
+    "/Users/chrisx/Desktop/Developer/puppeteer/apptointment.test.js"
+  ]
+}

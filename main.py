@@ -10,24 +10,29 @@ import time
 from datetime import datetime, timedelta
 import random
 
-# Page configuration
 st.set_page_config(
     page_title="Jest Test Runner",
     page_icon="🧪",
     layout="wide"
 )
 
-# Custom CSS
 with open('styles.css') as f:
     st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
 
 class JestTestUI:
     def __init__(self):
-        self.test_runner = TestRunner()
+        if 'project_dir' not in st.session_state:
+            st.session_state.project_dir = str(Path.cwd())
+            
+        try:
+            self.test_runner = TestRunner(st.session_state.project_dir)
+        except ValueError as e:
+            st.error(f"Error initializing TestRunner: {str(e)}")
+            self.test_runner = None
+            
         self.preset_manager = PresetManager()
         self.report_exporter = TestReportExporter()
         
-        # Initialize session state
         if 'test_files' not in st.session_state:
             st.session_state.test_files = []
         if 'test_commands' not in st.session_state:
@@ -55,15 +60,27 @@ class JestTestUI:
         with col1:
             directory = st.text_input(
                 "Project Directory",
-                value=str(Path.cwd()),
+                value=st.session_state.project_dir,
                 help="Enter the path to your project directory containing Jest tests"
             )
         with col2:
             if st.button("Scan Directory", type="primary"):
-                with st.spinner("Scanning for test files..."):
-                    st.session_state.test_files = scan_test_files(directory)
-                    st.session_state.test_commands = parse_test_commands(st.session_state.test_files)
-                    st.success(f"Found {len(st.session_state.test_files)} test files!")
+                try:
+                    # Update project directory in session state
+                    st.session_state.project_dir = directory
+                    # Reinitialize test runner with new directory
+                    self.test_runner = TestRunner(directory)
+                    
+                    with st.spinner("Scanning for test files..."):
+                        exclude_patterns = ['node_modules', 'coverage', 'dist']
+                        st.session_state.test_files = scan_test_files(directory, exclude_patterns)
+                        if st.session_state.test_files:
+                            st.session_state.test_commands = parse_test_commands(st.session_state.test_files)
+                            st.success(f"Found {len(st.session_state.test_files)} test files!")
+                        else:
+                            st.warning("No test files found in the specified directory. Make sure you have .test.js files in your project.")
+                except ValueError as e:
+                    st.error(f"Invalid project directory: {str(e)}")
 
     def render_preset_management(self):
         st.header("📋 Test Presets")
@@ -126,77 +143,112 @@ class JestTestUI:
         st.markdown("---")
 
     def run_single_test(self, test_pattern: str):
-        with st.spinner(f"Running test: {test_pattern}"):
-            start_time = time.time()
-            success, output = self.test_runner.run_test(test_pattern)
-            duration = round(time.time() - start_time, 2)
+        """Execute a single test and display its results"""
+        progress_placeholder = st.empty()
+        status_placeholder = st.empty()
+        result_placeholder = st.empty()
+        log_placeholder = st.empty()
 
-            result = {
-                'Test': test_pattern,
-                'Status': '✅ PASS' if success else '❌ FAIL',
-                'Duration': f'{duration}s',
-                'Output': output
-            }
+        with progress_placeholder:
+            with st.spinner(f"Running test: {test_pattern}"):
+                try:
+                    # Log test execution start
+                    log_placeholder.write(f"🚀 Starting test execution: {test_pattern}")
+                    st.write(f"⚙️ Executing test pattern: `{test_pattern}`")
+                    
+                    start_time = time.time()
+                    success, output = self.test_runner.run_test(test_pattern)
+                    duration = round(time.time() - start_time, 2)
 
-            self.store_test_history([result])
-            self.display_results([result], st.empty())
+                    result = {
+                        'Test': test_pattern,
+                        'Status': '✅ PASS' if success else '❌ FAIL',
+                        'Duration': f'{duration}s',
+                        'Output': output
+                    }
+
+                    # Store in history and display results
+                    self.store_test_history([result])
+                    
+                    with result_placeholder:
+                        if not success:
+                            st.error("❌ Test execution failed! Check the output below for details.")
+                        else:
+                            st.success("✅ Test completed successfully!")
+                        
+                        # Display execution summary
+                        st.info(f"""
+                        📊 Test Execution Summary:
+                        - Duration: {duration}s
+                        - Status: {result['Status']}
+                        """)
+                        
+                        self.display_results([result], st.empty())
+
+                except Exception as e:
+                    with status_placeholder:
+                        st.error(f"⚠️ Error running test: {str(e)}")
+                        st.error("🔧 Please verify that Jest is properly installed and configured.")
 
     def render_test_selection(self):
         if st.session_state.test_files:
             st.header("🎯 Test Selection")
             
-            # Group tests by file
             test_files = {}
             for cmd in st.session_state.test_commands:
                 if cmd['file'] not in test_files:
                     test_files[cmd['file']] = []
                 test_files[cmd['file']].append(cmd)
 
-            # Display tests grouped by file
-            for file_path, commands in test_files.items():
+            for file_idx, (file_path, commands) in enumerate(test_files.items()):
                 with st.expander(f"📄 {file_path}", expanded=True):
                     file_command = next(cmd for cmd in commands if cmd['type'] == 'file')
                     
-                    # File-level controls
                     col1, col2 = st.columns([3, 1])
                     with col1:
                         st.checkbox(
                             "Select all tests in file",
                             value=file_command['pattern'] in st.session_state.selected_tests,
-                            key=f"select_all_{file_path}",
+                            key=f"file_select_{file_idx}_{hash(file_path)}",
                             on_change=self.handle_file_selection,
                             args=(file_command['pattern'], commands)
                         )
                     with col2:
                         st.button(
                             "▶️ Run File",
-                            key=f"run_file_{file_path}",
+                            key=f"run_file_{file_idx}_{hash(file_path)}",
                             on_click=self.run_single_test,
                             args=(file_command['pattern'],)
                         )
 
-                    # Individual test controls
-                    for cmd in commands:
+                    for test_idx, cmd in enumerate(commands):
                         if cmd['type'] == 'test':
                             col1, col2 = st.columns([3, 1])
                             with col1:
+                                # Create a unique key combining file path, test index, and test pattern hash
+                                unique_key = f"test_{file_idx}_{test_idx}_{hash(cmd['pattern'])}"
                                 st.checkbox(
                                     cmd['name'],
                                     value=cmd['pattern'] in st.session_state.selected_tests,
-                                    key=f"test_{cmd['pattern']}",
+                                    key=unique_key,
                                     on_change=self.handle_test_selection,
                                     args=(cmd['pattern'],)
                                 )
                             with col2:
                                 st.button(
                                     "▶️ Run",
-                                    key=f"run_test_{cmd['pattern']}",
+                                    key=f"run_{unique_key}",
                                     on_click=self.run_single_test,
                                     args=(cmd['pattern'],)
                                 )
 
             if st.session_state.selected_tests:
-                st.button("▶️ Run Selected Tests", on_click=self.run_tests, type="primary")
+                st.button(
+                    "▶️ Run Selected Tests", 
+                    on_click=self.run_tests, 
+                    type="primary",
+                    key="run_selected_tests"
+                )
 
     def handle_file_selection(self, file_pattern: str, commands: list):
         is_selected = file_pattern in st.session_state.selected_tests
@@ -361,10 +413,10 @@ class JestTestUI:
             history_df = pd.DataFrame(st.session_state.test_history)
             
             st.subheader("Test Success Rate Over Time")
-            success_rate = history_df.groupby('timestamp', group_keys=False).apply(
-                lambda x: (x['status'] == '✅ PASS').mean() * 100
-            ).reset_index()
-            success_rate.columns = ['timestamp', 'success_rate']
+            success_rate = (
+                history_df.groupby('timestamp', as_index=False)
+                .agg(success_rate=('status', lambda x: (x == '✅ PASS').mean() * 100))
+            )
             
             fig_success = px.line(
                 success_rate,
@@ -376,7 +428,11 @@ class JestTestUI:
             st.plotly_chart(fig_success, use_container_width=True)
 
             st.subheader("Test Duration Trends")
-            duration_df = history_df.groupby(['test', 'timestamp'])['duration'].mean().reset_index()
+            duration_df = (
+                history_df.groupby(['test', 'timestamp'], as_index=False)
+                .agg(duration=('duration', 'mean'))
+            )
+            
             fig_duration = px.line(
                 duration_df,
                 x='timestamp',
